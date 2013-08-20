@@ -1,9 +1,0 @@
-#!/bin/bash
-
-sleep_time=0.1
-while [ ! -e ~/hks/.mykey ]; do
-    sleep ${sleep_time}
-done
-key=$(cat ~/hks/.mykey)
-rm -f ~/hks/.mykey
-echo $key
