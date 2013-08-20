@@ -1,0 +1,77 @@
+#!/bin/bash
+
+dir=$1
+
+# size and move window
+sleep 0.01
+wmctrl -r hks_${dir} -e "0,0,0,300,500"
+wmctrl -a hks_${dir}
+
+# get max length of all filenames
+max=1
+for f in ~/hks/$dir/*; do
+    thislen=$(expr length ${f##*/})
+    if [[ $thislen > $max ]]; then
+        max=$thislen
+    fi
+done
+
+# list all options
+echo "Press <space> to cancel."
+cd ~/hks/$dir
+for f in ~/hks/$dir/*; do
+    echo -n "${f##*/}"
+    thislen=$(expr length ${f##*/})
+    for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
+        echo -n " "
+    done
+    if [ -e ~/hks/$dir/.${f##*/} ]; then
+        echo "$(cat ~/hks/$dir/.${f##*/})"
+    else
+        echo "$(cat ${f})"
+    fi
+done
+
+# get keys until a match is found
+old_tty_setting=$(stty -g)
+stty -icanon -echo
+for (( i=1; i<=${max}; i++)); do
+    # get key
+    thisKey=$(dd bs=1 count=1 2> /dev/null)
+
+    # cancel if key is a space
+    if [[ ${thisKey} == " " ]]; then
+        break
+    fi
+
+    # combine this key with all previous keys
+    key=${key}${thisKey}
+
+    # cancel if there's a matching filename
+    if [ -e ~/hks/$dir/$key ]; then
+        break
+    fi
+
+    # filter options
+    clear
+    echo "Press <space> to cancel."
+    for f in ~/hks/$dir/*; do
+        if [[ ${f##*/} == ${key}* ]]; then
+            echo -n "${f##*/}"
+            thislen=$(expr length ${f##*/})
+            for (( j=1; j<=$((${max}-${thislen}+2)); j++)); do
+                echo -n " "
+            done
+            if [ -e ~/hks/$dir/.${f##*/} ]; then
+                echo "$(cat ~/hks/$dir/.${f##*/})"
+            else
+                echo "$(cat ${f})"
+            fi
+        fi
+    done
+    echo -n ${key}
+done
+
+echo $key > ~/hks/.mykey
+stty "$old_tty_setting"
+exit

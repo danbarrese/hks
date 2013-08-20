@@ -1,0 +1,239 @@
+#!/bin/bash
+
+# This script executes actions based on the -a input string.
+# Actions can be limited by window title regex with the -w option.
+#
+# Example: hks -w terminal -a foo
+# Example: hks -w *eclipse* -a bar
+#
+# Author: Dan Barrese
+# Log: 2013-08-20: Melded 3 script into this 1 script.
+# Log: 2013-07-06: Created.
+
+# require
+hash xdotool 2>/dev/null || { echo >&2 "xdotool is required."; exit 1; }
+hash wmctrl  2>/dev/null || { echo >&2 "wmctrl  is required."; exit 1; }
+hash konsole 2>/dev/null || { echo >&2 "konsole is required."; exit 1; }
+hash stty    2>/dev/null || { echo >&2 "stty    is required."; exit 1; }
+
+# require terminal
+#if [[ !$(hash konsole 2>/dev/null) ]]; then
+    #term=konsole
+#elif [[ !$(hash gnome-terminal 2>/dev/null) ]]; then
+    #term=gnome-terminal
+#elif [[ !$(hash terminal 2>/dev/null) ]]; then
+    #term=terminal
+#elif [[ !$(hash xterm 2>/dev/null) ]]; then
+    #term=xterm
+#else
+    #echo >&2 "Could not find a terminal."
+    #exit 1
+#fi
+
+hksdir=~/hks
+mykey=${hksdir}/.mykey
+me=${0##*/}
+term=konsole
+
+###############################################################################
+# mykeyget
+keygetvar="mykeyget"
+if [[ $1 == ${keygetvar} ]]; then
+    sleep_time=0.1
+    while [ ! -e ${mykey} ]; do
+        sleep ${sleep_time}
+    done
+    mykeyget=$(cat ${mykey})
+    rm -f ${mykey}
+    echo ${mykeyget}
+    exit
+fi
+###############################################################################
+
+###############################################################################
+# mykeyset
+keysetvar="mykeyset"
+if [[ $1 == ${keysetvar} ]]; then
+    if [[ $# < 2 ]]; then
+        exit
+    fi
+    dir=$2
+
+    # size and move window
+    sleep 0.01
+    wmctrl -r ${me}_${dir} -e "0,0,0,300,500"
+    wmctrl -a ${me}_${dir}
+
+    # get max length of all filenames
+    max=1
+    for f in ${hksdir}/$dir/*; do
+        thislen=$(expr length ${f##*/})
+        if [[ $thislen > $max ]]; then
+            max=$thislen
+        fi
+    done
+
+    # list all options
+    echo "Press <space> to cancel."
+    cd ${hksdir}/$dir
+    for f in ${hksdir}/$dir/*; do
+        echo -n "${f##*/}"
+        thislen=$(expr length ${f##*/})
+        for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
+            echo -n " "
+        done
+        if [ -e ${hksdir}/$dir/.${f##*/} ]; then
+            echo "$(cat ${hksdir}/$dir/.${f##*/})"
+        else
+            echo "$(cat ${f})"
+        fi
+    done
+
+    # get keys until a match is found
+    old_tty_setting=$(stty -g)
+    stty -icanon -echo
+    for (( i=1; i<=${max}; i++)); do
+        # get key
+        thisKey=$(dd bs=1 count=1 2> /dev/null)
+
+        # cancel if key is a space
+        if [[ ${thisKey} == " " ]]; then
+            break
+        fi
+
+        # combine this key with all previous keys
+        mykeyset=${mykeyset}${thisKey}
+
+        # cancel if there's a matching filename
+        if [ -e ${hksdir}/${dir}/${mykeyset} ]; then
+            break
+        fi
+
+        # filter options
+        clear
+        echo "Press <space> to cancel."
+        for f in ${hksdir}/${dir}/*; do
+            if [[ ${f##*/} == ${mykeyset}* ]]; then
+                echo -n "${f##*/}"
+                thislen=$(expr length ${f##*/})
+                for (( j=1; j<=$((${max}-${thislen}+2)); j++)); do
+                    echo -n " "
+                done
+                if [ -e ${hksdir}/${dir}/.${f##*/} ]; then
+                    echo "$(cat ${hksdir}/$dir/.${f##*/})"
+                else
+                    echo "$(cat ${f})"
+                fi
+            fi
+        done
+        echo -n ${mykeyset}
+    done
+
+    echo ${mykeyset} > ${mykey}
+    stty "${old_tty_setting}"
+    exit
+fi
+###############################################################################
+
+#id=$(xdotool getwindowpid $(xdotool getwindowfocus))
+
+# release keys that may be currently depressed
+xdotool keyup Alt_L Control_L Super_L Shift_L
+
+# Works in Fedora 18, not in CentOS 6.4
+#title=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/comm)
+
+# get name of exe
+#exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
+
+# prep vars
+no_w_param=true
+exe_ok=false
+ran=false
+
+while getopts "w:a:" n; do
+    case ${n} in
+        w)
+            no_w_param=false
+            # reset window matching if we just finished running an "-a" command
+            if $ran; then
+                exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
+                exe_ok=false
+                ran=false
+            fi
+
+            # test if exe filename matches input (input may have wildcards)
+            if ! ${exe_ok}; then
+                if [[ ${exe,,} == ${OPTARG,,} ]]; then
+                    exe_ok=true
+                fi
+            fi
+            ;;
+        a)
+            if ${no_w_param} || ${exe_ok}; then
+                case ${OPTARG} in
+                    app)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
+                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
+                        key=$(${me} ${keygetvar})
+                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                            sh ${hksdir}/${OPTARG}/${key} &
+                        fi
+                        ;;
+                    win)
+                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
+                        key=$(${me} ${keygetvar})
+                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                            sh ${hksdir}/${OPTARG}/${key}
+                        fi
+                        ;;
+                    file)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
+                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
+                        key=$(${me} ${keygetvar})
+                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                            sh ${hksdir}/${OPTARG}/${key} &
+                        fi
+                        ;;
+                    fullscreen)
+                        xdotool keydown super key f keyup super
+                        ;;
+                    a_tab)
+                        xdotool keydown alt key Tab keyup alt
+                        ;;
+                    test)
+                        xdotool type helloworld && \
+                        xdotool key Return
+                        ;;
+                    vimo)
+                        xdotool type .  && \
+                        xdotool keydown control && \
+                        xdotool key u && \
+                        xdotool keyup control
+                        ;;
+                    sticky_toggle)
+                        xdotool keydown control alt && \
+                        xdotool key space && \
+                        xdotool keyup control alt && \
+                        xdotool key t
+                        ;;
+                    dblquo)
+                        xdotool type \"\" && \
+                        xdotool key Left
+                        ;;
+                    sglquo)
+                        xdotool type \'\' && \
+                        xdotool key Left
+                        ;;
+                esac
+            fi
+            ran=true
+            ;;
+    esac
+done
+
+exit
