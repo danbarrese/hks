@@ -11,10 +11,11 @@
 # Log: 2013-07-06: Created.
 
 # require
-hash xdotool 2>/dev/null || { echo >&2 "xdotool is required."; exit 1; }
-hash wmctrl  2>/dev/null || { echo >&2 "wmctrl  is required."; exit 1; }
-hash konsole 2>/dev/null || { echo >&2 "konsole is required."; exit 1; }
-hash stty    2>/dev/null || { echo >&2 "stty    is required."; exit 1; }
+type xdotool >/dev/null 2>&1 || { echo >&2 "xdotool is required."; exit 1; }
+type wmctrl  >/dev/null 2>&1 || { echo >&2 "wmctrl  is required."; exit 1; }
+type konsole >/dev/null 2>&1 || { echo >&2 "konsole is required."; exit 1; }
+type stty    >/dev/null 2>&1 || { echo >&2 "stty    is required."; exit 1; }
+type xclip   >/dev/null 2>&1 || { echo >&2 "xclip   is required."; exit 1; }
 
 # require terminal
 #if [[ !$(hash konsole 2>/dev/null) ]]; then
@@ -61,7 +62,7 @@ if [[ $1 == ${keysetvar} ]]; then
 
     # size and move window
     sleep 0.01
-    wmctrl -r ${me}_${dir} -e "0,0,0,300,500"
+    wmctrl -r ${me}_${dir} -e "0,0,0,300,700"
     wmctrl -a ${me}_${dir}
 
     # get max length of all filenames
@@ -77,15 +78,19 @@ if [[ $1 == ${keysetvar} ]]; then
     echo "Press <space> to cancel."
     cd ${hksdir}/$dir
     for f in ${hksdir}/$dir/*; do
-        echo -n "${f##*/}"
-        thislen=$(expr length ${f##*/})
-        for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
-            echo -n " "
-        done
-        if [ -e ${hksdir}/$dir/.${f##*/} ]; then
-            echo "$(cat ${hksdir}/$dir/.${f##*/})"
+        if [[ ${dir} == "copy" || ${dir} == "paste" ]]; then
+            echo "${f##*/}"
         else
-            echo "$(cat ${f})"
+            echo -n "${f##*/}"
+            thislen=$(expr length ${f##*/})
+            for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
+                echo -n " "
+            done
+            if [ -e ${hksdir}/$dir/.${f##*/} ]; then
+                echo "$(cat ${hksdir}/$dir/.${f##*/})"
+            else
+                echo "$(cat ${f})"
+            fi
         fi
     done
 
@@ -98,14 +103,15 @@ if [[ $1 == ${keysetvar} ]]; then
 
         # cancel if key is a space
         if [[ ${thisKey} == " " ]]; then
+            allKeys="This key does not exist"
             break
         fi
 
         # combine this key with all previous keys
-        mykeyset=${mykeyset}${thisKey}
+        allKeys=${allKeys}${thisKey}
 
         # cancel if there's a matching filename
-        if [ -e ${hksdir}/${dir}/${mykeyset} ]; then
+        if [ -e ${hksdir}/${dir}/${allKeys} ]; then
             break
         fi
 
@@ -113,7 +119,7 @@ if [[ $1 == ${keysetvar} ]]; then
         clear
         echo "Press <space> to cancel."
         for f in ${hksdir}/${dir}/*; do
-            if [[ ${f##*/} == ${mykeyset}* ]]; then
+            if [[ ${f##*/} == ${allKeys}* ]]; then
                 echo -n "${f##*/}"
                 thislen=$(expr length ${f##*/})
                 for (( j=1; j<=$((${max}-${thislen}+2)); j++)); do
@@ -126,10 +132,10 @@ if [[ $1 == ${keysetvar} ]]; then
                 fi
             fi
         done
-        echo -n ${mykeyset}
+        echo -n ${allKeys}
     done
 
-    echo ${mykeyset} > ${mykey}
+    echo ${allKeys} > ${mykey}
     stty "${old_tty_setting}"
     exit
 fi
@@ -202,18 +208,38 @@ while getopts "w:a:" n; do
                             sh ${hksdir}/${OPTARG}/${key} &
                         fi
                         ;;
-                    clipboard)
+                    copy)
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
                         ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
                         key=$(${me} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
-                            sleep 0.01 && \
-                            while read line; do
-                                xdotool type "${line}"
-                                xdotool key Return
-                            done < ${hksdir}/${OPTARG}/${key}
+                            xclip -selection clipboard -o -f > ${hksdir}/${OPTARG}/${key}
+                            xclip -selection clipboard -o -f > ${hksdir}/paste/${key}
+                        fi
+                        ;;
+                    paste)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
+                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
+                        key=$(${me} ${keygetvar})
+                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                            sleep 0.01
+                            # preserve old clipboard contents
+                            oldClipboardTextVal=$(xclip -selection clipboard -o -f)
+
+                            # place file contents into clipboard
+                            xclip -selection clipboard -i -f ${hksdir}/${OPTARG}/${key}
+
+                            # paste using Ctrl+v
+                            xdotool keydown control && \
+                            xdotool key v && \
+                            xdotool keyup control
+
+                            # restore clipboard
+                            echo -n ${oldClipboardTextVal} | xclip -selection clipboard -f
                         fi
                         ;;
                     fullscreen)
