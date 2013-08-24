@@ -183,6 +183,9 @@ while getopts "w:a:" n; do
                         fi
                         ;;
                     win)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
                         ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
                         key=$(${me} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
@@ -197,6 +200,20 @@ while getopts "w:a:" n; do
                         key=$(${me} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             sh ${hksdir}/${OPTARG}/${key} &
+                        fi
+                        ;;
+                    clipboard)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
+                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
+                        key=$(${me} ${keygetvar})
+                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                            sleep 0.01 && \
+                            while read line; do
+                                xdotool type "${line}"
+                                xdotool key Return
+                            done < ${hksdir}/${OPTARG}/${key}
                         fi
                         ;;
                     fullscreen)
