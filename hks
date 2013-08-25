@@ -7,8 +7,22 @@
 # Example: hks -w *eclipse* -a bar
 #
 # Author: Dan Barrese
+# Log: 2013-08-24: Added copy and paste operations.
 # Log: 2013-08-20: Melded 3 script into this 1 script.
 # Log: 2013-07-06: Created.
+
+# help
+if [[ $1 == "-help" || $1 == "-h" || $1 == "help" ]]; then
+    echo "HKS - HotKeyS"
+    echo "-a app     Opens a dialog to open applications."
+    echo "-a copy    Opens a dialog to copy clipboard text into non-volatile register."
+    echo "-a file    Opens a dialog to open files."
+    echo "-a paste   Opens a dialog to paste clipboard text from non-volatile register."
+    echo "-a win     Opens a dialog to manipulate windows."
+    echo "-a zzz     Uses sh to execute a script in 'hks/misc/' named zzz."
+    exit
+fi
+
 
 # require
 type xdotool >/dev/null 2>&1 || { echo >&2 "xdotool is required."; exit 1; }
@@ -242,35 +256,8 @@ while getopts "w:a:" n; do
                             echo -n ${oldClipboardTextVal} | xclip -selection clipboard -f
                         fi
                         ;;
-                    fullscreen)
-                        xdotool keydown super key f keyup super
-                        ;;
-                    a_tab)
-                        xdotool keydown alt key Tab keyup alt
-                        ;;
-                    test)
-                        xdotool type helloworld && \
-                        xdotool key Return
-                        ;;
-                    vimo)
-                        xdotool type .  && \
-                        xdotool keydown control && \
-                        xdotool key u && \
-                        xdotool keyup control
-                        ;;
-                    sticky_toggle)
-                        xdotool keydown control alt && \
-                        xdotool key space && \
-                        xdotool keyup control alt && \
-                        xdotool key t
-                        ;;
-                    dblquo)
-                        xdotool type \"\" && \
-                        xdotool key Left
-                        ;;
-                    sglquo)
-                        xdotool type \'\' && \
-                        xdotool key Left
+                    *)
+                        sh ${hksdir}/misc/${OPTARG} &
                         ;;
                 esac
             fi

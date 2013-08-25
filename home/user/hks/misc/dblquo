@@ -1,0 +1,2 @@
+xdotool type \"\" && \
+xdotool key Left
