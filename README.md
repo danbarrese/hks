@@ -45,7 +45,7 @@ cd /desired/path/hks
 cd app  #or any of the other folders (e.g. action, win, file, etc.)
 echo 'wmctrl -c :ACTIVE:' > /desired/path/hks/win/q
 echo 'Quit active window' > /desired/path/hks/win/.q
-``
+```
 
 ##Use Application-Specific Commands
 
