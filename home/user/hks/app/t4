@@ -1,6 +1,0 @@
-xdotool keydown super control              && \
-konsole && xdotool type --delay 200 hhkk   && \
-konsole && xdotool type --delay 200 hhjj   && \
-konsole && xdotool type --delay 200 llkk   && \
-konsole && xdotool type --delay 200 lljj   && \
-xdotool keyup super control

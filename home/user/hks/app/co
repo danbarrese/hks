@@ -1,6 +1,0 @@
-konsole &&\
-wgeoctl -s up &&\
-wgeoctl -s down &&\
-wgeoctl -b left &&\
-xdotool type "orpie" &&\
-xdotool key Return

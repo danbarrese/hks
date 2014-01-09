@@ -1,4 +1,0 @@
-xdotool keydown control alt && \
-xdotool key space && \
-xdotool keyup control alt && \
-xdotool key t

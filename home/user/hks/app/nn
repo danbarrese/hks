@@ -1,6 +1,0 @@
-gvim                                    && \
-wmctrl -r :ACTIVE: -e "0,0,0,600,200"   && \
-wgeoctl -b right                        && \
-wgeoctl -b down                         && \
-xdotool type ":set wrap"                && \
-xdotool key Return

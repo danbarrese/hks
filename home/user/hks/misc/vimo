@@ -1,4 +1,0 @@
-xdotool type .  && \
-xdotool keydown control && \
-xdotool key u && \
-xdotool keyup control

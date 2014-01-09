@@ -29,7 +29,7 @@ type xdotool >/dev/null 2>&1 || { echo >&2 "xdotool is required."; exit 1; }
 type wmctrl  >/dev/null 2>&1 || { echo >&2 "wmctrl  is required."; exit 1; }
 type konsole >/dev/null 2>&1 || { echo >&2 "konsole is required."; exit 1; }
 type stty    >/dev/null 2>&1 || { echo >&2 "stty    is required."; exit 1; }
-type xclip   >/dev/null 2>&1 || { echo >&2 "xclip   is required."; exit 1; }
+# type xclip   >/dev/null 2>&1 || { echo >&2 "xclip   is required."; exit 1; }
 
 # require terminal
 #if [[ !$(hash konsole 2>/dev/null) ]]; then
@@ -47,7 +47,7 @@ type xclip   >/dev/null 2>&1 || { echo >&2 "xclip   is required."; exit 1; }
 
 hksdir=~/hks
 mykey=${hksdir}/.mykey
-me=${0##*/}
+this=${0##*/}
 term=konsole
 
 ###############################################################################
@@ -76,37 +76,41 @@ if [[ $1 == ${keysetvar} ]]; then
 
     # size and move window
     sleep 0.01
-    wmctrl -r ${me}_${dir} -e "0,0,0,300,700"
-    wmctrl -a ${me}_${dir}
+    wmctrl -r ${this}_${dir} -e "0,0,0,300,700"
+    wmctrl -a ${this}_${dir}
 
-    # get max length of all filenames
-    max=1
-    for f in ${hksdir}/$dir/*; do
-        thislen=$(expr length ${f##*/})
-        if [[ $thislen > $max ]]; then
-            max=$thislen
-        fi
-    done
-
-    # list all options
-    echo "Press <space> to cancel."
-    cd ${hksdir}/$dir
-    for f in ${hksdir}/$dir/*; do
-        if [[ ${dir} == "copy" || ${dir} == "paste" ]]; then
-            echo "${f##*/}"
-        else
-            echo -n "${f##*/}"
+    shopt -s nullglob
+    files=(${hksdir}/$dir/*)
+    if [ ${#files[@]} -gt 0 ]; then
+        # get max length of all filenames
+        max=1
+        for f in ${hksdir}/$dir/*; do
             thislen=$(expr length ${f##*/})
-            for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
-                echo -n " "
-            done
-            if [ -e ${hksdir}/$dir/.${f##*/} ]; then
-                echo "$(cat ${hksdir}/$dir/.${f##*/})"
-            else
-                echo "$(cat ${f})"
+            if [[ $thislen > $max ]]; then
+                max=$thislen
             fi
-        fi
-    done
+        done
+
+        # list all options
+        echo "Press <space> to cancel."
+        cd ${hksdir}/$dir
+        for f in ${hksdir}/$dir/*; do
+            if [[ ${dir} == "copy" || ${dir} == "paste" ]]; then
+                echo "${f##*/}"
+            else
+                echo -n "${f##*/}"
+                thislen=$(expr length ${f##*/})
+                for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
+                    echo -n " "
+                done
+                if [ -e ${hksdir}/${dir}/.${f##*/} ]; then
+                    echo "$(cat ${hksdir}/${dir}/.${f##*/})"
+                else
+                    echo "$(cat ${f})"
+                fi
+            fi
+        done
+    fi
 
     # get keys until a match is found
     old_tty_setting=$(stty -g)
@@ -164,7 +168,7 @@ xdotool keyup Alt_L Control_L Super_L Shift_L
 #title=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/comm)
 
 # get name of exe
-#exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
+exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
 
 # prep vars
 no_w_param=true
@@ -192,12 +196,25 @@ while getopts "w:a:" n; do
         a)
             if ${no_w_param} || ${exe_ok}; then
                 case ${OPTARG} in
+                    action)
+                        if [ -e ${mykey} ]; then
+                            rm -f ${mykey}
+                        fi
+                        if [ ! -e ${hksdir}/${OPTARG}/${exe} ]; then
+                            mkdir ${hksdir}/${OPTARG}/${exe}
+                        fi
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} "${OPTARG}/${exe}"
+                        key=$(${this} ${keygetvar})
+                        if [ -e "${hksdir}/${OPTARG}/${exe}/${key}" ]; then
+                            sh "${hksdir}/${OPTARG}/${exe}/${key}" &
+                        fi
+                        ;;
                     app)
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
-                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
-                        key=$(${me} ${keygetvar})
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        key=$(${this} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             sh ${hksdir}/${OPTARG}/${key} &
                         fi
@@ -206,8 +223,8 @@ while getopts "w:a:" n; do
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
-                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
-                        key=$(${me} ${keygetvar})
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        key=$(${this} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             sh ${hksdir}/${OPTARG}/${key}
                         fi
@@ -216,8 +233,8 @@ while getopts "w:a:" n; do
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
-                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
-                        key=$(${me} ${keygetvar})
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        key=$(${this} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             sh ${hksdir}/${OPTARG}/${key} &
                         fi
@@ -226,8 +243,8 @@ while getopts "w:a:" n; do
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
-                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
-                        key=$(${me} ${keygetvar})
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        key=$(${this} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             xclip -selection clipboard -o -f > ${hksdir}/${OPTARG}/${key}
                             xclip -selection clipboard -o -f > ${hksdir}/paste/${key}
@@ -237,8 +254,8 @@ while getopts "w:a:" n; do
                         if [ -e ${mykey} ]; then
                             rm -f ${mykey}
                         fi
-                        ${term} -p tabtitle=${me}_${OPTARG} -e ${me} ${keysetvar} ${OPTARG}
-                        key=$(${me} ${keygetvar})
+                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        key=$(${this} ${keygetvar})
                         if [ -e ${hksdir}/${OPTARG}/${key} ]; then
                             sleep 0.01
                             # preserve old clipboard contents

@@ -1,5 +1,0 @@
-xdotool type "<q></q>" && \
-xdotool key Left && \
-xdotool key Left && \
-xdotool key Left && \
-xdotool key Left

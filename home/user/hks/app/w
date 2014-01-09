@@ -1,1 +1,0 @@
-gvim ~/vimwiki/index.wiki && wmctrl -r :ACTIVE: -b add,maximized_vert,maximized_horz
