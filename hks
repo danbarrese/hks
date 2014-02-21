@@ -12,6 +12,7 @@
 # Log: 2013-08-24: Added copy and paste operations.
 # Log: 2014.02.21: Added support for gnome-terminal and backspace input.
 # Log: 2014.02.21: Removed dependency on wmctrl.  Script will use it if available.
+# Log: 2014.02.21: Removed dependency on xdotool.
 
 ###############################################################################
 # User Configuration:
@@ -20,24 +21,32 @@ term=konsole # Options: konsole, gnome-terminal
 ###############################################################################
 
 # help
-if [[ $1 == "-help" || $1 == "-h" || $1 == "help" ]]; then
-    echo "HKS - HotKeyS"
+if [[ $# == 0 || $1 == "-help" || $1 == "-h" || $1 == "help" ]]; then
+    echo "HKS - Hot Key Sequences"
     echo "-a app     Opens a dialog to open applications."
     echo "-a copy    Opens a dialog to copy clipboard text into non-volatile register."
     echo "-a file    Opens a dialog to open files."
     echo "-a paste   Opens a dialog to paste clipboard text from non-volatile register."
     echo "-a win     Opens a dialog to manipulate windows."
     echo "-a zzz     Uses sh to execute a script in 'hks/misc/' named zzz."
+    echo ""
+    echo "'-w *' and '-a paste' operations require xdotool."
     exit
 fi
 
 
 # require
-type xdotool >/dev/null 2>&1 || { echo >&2 "xdotool is required."; exit 1; }
-type stty    >/dev/null 2>&1 || { echo >&2 "stty    is required."; exit 1; }
+type stty >/dev/null 2>&1 || { echo >&2 "stty is required."; exit 1; }
+type dd >/dev/null 2>&1 || { echo >&2 "dd is required."; exit 1; }
 
 mykey="${hksdir}/.mykey"
 this=${0##*/}
+type xdotool >/dev/null 2>&1
+if [[ $? == 0 ]]; then
+    hasxdotool=true
+else
+    hasxdotool=false
+fi
 
 # Verify terminal exists and is supported by this script.
 type ${term} >/dev/null 2>&1 || { echo >&2 "${term} is required."; exit 1; }
@@ -173,7 +182,9 @@ fi
 #id=$(xdotool getwindowpid $(xdotool getwindowfocus))
 
 # release keys that may be currently depressed
-xdotool keyup Alt_L Control_L Super_L Shift_L
+if ${hasxdotool}; then
+    xdotool keyup Alt_L Control_L Super_L Shift_L
+fi
 
 # Works in Fedora 18, not in CentOS 6.4
 #title=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/comm)
@@ -189,19 +200,24 @@ ran=false
 while getopts "w:a:" n; do
     case ${n} in
         w)
-            no_w_param=false
-            # reset window matching if we just finished running an "-a" command
-            if $ran; then
-                exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
-                exe_ok=false
-                ran=false
-            fi
-
-            # test if exe filename matches input (input may have wildcards)
-            if ! ${exe_ok}; then
-                if [[ ${exe,,} == ${OPTARG,,} ]]; then
-                    exe_ok=true
+            if ${hasxdotool}; then
+                no_w_param=false
+                # reset window matching if we just finished running an "-a" command
+                if $ran; then
+                    exe=$(cat /proc/$(xdotool getwindowpid $(xdotool getwindowfocus))/status | sed -rn 's/Name:\t([a-zA-Z0-9]+)/\1/ p')
+                    exe_ok=false
+                    ran=false
                 fi
+
+                # test if exe filename matches input (input may have wildcards)
+                if ! ${exe_ok}; then
+                    if [[ ${exe,,} == ${OPTARG,,} ]]; then
+                        exe_ok=true
+                    fi
+                fi
+            else
+                printf '%s\n' "xdotool required for this operation."
+                exit 1
             fi
             ;;
         a)
@@ -211,16 +227,21 @@ while getopts "w:a:" n; do
                 fi
                 case ${OPTARG} in
                     action)
-                        if [ ! -e "${hksdir}/${OPTARG}/${exe}" ]; then
-                            mkdir "${hksdir}/${OPTARG}/${exe}"
-                        fi
-                        case ${term} in
-                            konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}/${exe} ;;
-                            gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}${exe}" ;;
-                        esac
-                        key=$(${this} ${keygetvar})
-                        if [ -e "${hksdir}/${OPTARG}/${exe}/${key}" ]; then
-                            sh "${hksdir}/${OPTARG}/${exe}/${key}" &
+                        if ${hasxdotool}; then
+                            if [ ! -e "${hksdir}/${OPTARG}/${exe}" ]; then
+                                mkdir "${hksdir}/${OPTARG}/${exe}"
+                            fi
+                            case ${term} in
+                                konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}/${exe} ;;
+                                gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}${exe}" ;;
+                            esac
+                            key=$(${this} ${keygetvar})
+                            if [ -e "${hksdir}/${OPTARG}/${exe}/${key}" ]; then
+                                sh "${hksdir}/${OPTARG}/${exe}/${key}" &
+                            fi
+                        else
+                            printf '%s\n' "xdotool required for this operation."
+                            exit 1
                         fi
                         ;;
                     app|win|file)

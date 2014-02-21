@@ -14,15 +14,15 @@ HKS is a utility that allows for arbitrary command(s) to be executed from a seri
 
 ##Installation
 
-Copy the `hks` script to your executable path.
+Copy the `hks` script to your executable path (or execute it via `/path/to/hks`).  Note: HKS has been tested on only CentOS 6.4+.
 
 Make sure you have the following:
-* HKS has been tested on only CentOS 6.4+.
-* `xdotool`
-* `wmctrl` (now optional)
+* `bash`
 * `konsole` or `gnome-terminal`
 * `stty`
-* `bash`
+* `dd` (for reading keyboard input)
+* `xdotool` (optional, needed for certain features)
+* `wmctrl` (now optional)
 
 ```bash
 cd /desired/path/
@@ -60,3 +60,4 @@ The second way is to use the `-a action` option.  `-a action` will get the name 
 * 2013-07-06: Created.
 * 2013-08-24: Added persistent clipboard feature.
 * 2014.02.21: Added support for gnome-terminal and backspace input.  Removed dependency on wmctrl (script will use it if available).
+* 2014.02.21: Removed dependency on xdotool (script will use it if available).
