@@ -7,9 +7,17 @@
 # Example: hks -w *eclipse* -a bar
 #
 # Author: Dan Barrese
-# Log: 2013-08-24: Added copy and paste operations.
-# Log: 2013-08-20: Melded 3 script into this 1 script.
 # Log: 2013-07-06: Created.
+# Log: 2013-08-20: Melded 3 script into this 1 script.
+# Log: 2013-08-24: Added copy and paste operations.
+# Log: 2014.02.21: Added support for gnome-terminal and backspace input.
+# Log: 2014.02.21: Removed dependency on wmctrl.  Script will use it if available.
+
+###############################################################################
+# User Configuration:
+hksdir=~/"hks"
+term=konsole # Options: konsole, gnome-terminal
+###############################################################################
 
 # help
 if [[ $1 == "-help" || $1 == "-h" || $1 == "help" ]]; then
@@ -26,40 +34,32 @@ fi
 
 # require
 type xdotool >/dev/null 2>&1 || { echo >&2 "xdotool is required."; exit 1; }
-type wmctrl  >/dev/null 2>&1 || { echo >&2 "wmctrl  is required."; exit 1; }
-type konsole >/dev/null 2>&1 || { echo >&2 "konsole is required."; exit 1; }
 type stty    >/dev/null 2>&1 || { echo >&2 "stty    is required."; exit 1; }
-# type xclip   >/dev/null 2>&1 || { echo >&2 "xclip   is required."; exit 1; }
 
-# require terminal
-#if [[ !$(hash konsole 2>/dev/null) ]]; then
-    #term=konsole
-#elif [[ !$(hash gnome-terminal 2>/dev/null) ]]; then
-    #term=gnome-terminal
-#elif [[ !$(hash terminal 2>/dev/null) ]]; then
-    #term=terminal
-#elif [[ !$(hash xterm 2>/dev/null) ]]; then
-    #term=xterm
-#else
-    #echo >&2 "Could not find a terminal."
-    #exit 1
-#fi
-
-hksdir=~/hks
-mykey=${hksdir}/.mykey
+mykey="${hksdir}/.mykey"
 this=${0##*/}
-term=konsole
+
+# Verify terminal exists and is supported by this script.
+type ${term} >/dev/null 2>&1 || { echo >&2 "${term} is required."; exit 1; }
+case ${term} in
+    konsole|gnome-terminal)
+        ;;
+    *)
+        printf '%s\n' "${term} not supported."
+        exit 1
+        ;;
+esac
 
 ###############################################################################
 # mykeyget
 keygetvar="mykeyget"
 if [[ $1 == ${keygetvar} ]]; then
     sleep_time=0.1
-    while [ ! -e ${mykey} ]; do
+    while [ ! -e "${mykey}" ]; do
         sleep ${sleep_time}
     done
-    mykeyget=$(cat ${mykey})
-    rm -f ${mykey}
+    mykeyget=$(cat "${mykey}")
+    rm -f "${mykey}"
     echo ${mykeyget}
     exit
 fi
@@ -75,9 +75,12 @@ if [[ $1 == ${keysetvar} ]]; then
     dir=$2
 
     # size and move window
-    sleep 0.01
-    wmctrl -r ${this}_${dir} -e "0,0,0,300,700"
-    wmctrl -a ${this}_${dir}
+    if type wmctrl >/dev/null 2>&1; then
+        sleep 0.01
+        wmctrl -r ${this}_${dir} -e "0,0,0,300,700"
+        wmctrl -a ${this}_${dir}
+        sleep 0.05 # Wait long enough for window to resize before we start writing text to it.
+    fi
 
     shopt -s nullglob
     files=(${hksdir}/$dir/*)
@@ -92,21 +95,21 @@ if [[ $1 == ${keysetvar} ]]; then
         done
 
         # list all options
-        echo "Press <space> to cancel."
-        cd ${hksdir}/$dir
-        for f in ${hksdir}/$dir/*; do
-            if [[ ${dir} == "copy" || ${dir} == "paste" ]]; then
-                echo "${f##*/}"
+        printf '%s\n' "Press <space> to cancel."
+        cd "${hksdir}/$dir"
+        for f in "${hksdir}/$dir/"*; do
+            if [[ "${dir}" == "copy" || "${dir}" == "paste" ]]; then
+                printf '%s\n' "${f##*/}"
             else
-                echo -n "${f##*/}"
+                printf '%s' "${f##*/}"
                 thislen=$(expr length ${f##*/})
                 for (( i=1; i<=$((${max}-${thislen}+2)); i++)); do
-                    echo -n " "
+                    printf '%s' " "
                 done
-                if [ -e ${hksdir}/${dir}/.${f##*/} ]; then
-                    echo "$(cat ${hksdir}/${dir}/.${f##*/})"
+                if [ -e "${hksdir}/${dir}/.${f##*/}" ]; then
+                    printf '%s\n' "$(cat ${hksdir}/${dir}/.${f##*/})"
                 else
-                    echo "$(cat ${f})"
+                    printf '%s\n' "$(cat ${f})"
                 fi
             fi
         done
@@ -119,41 +122,49 @@ if [[ $1 == ${keysetvar} ]]; then
         # get key
         thisKey=$(dd bs=1 count=1 2> /dev/null)
 
-        # cancel if key is a space
-        if [[ ${thisKey} == " " ]]; then
-            allKeys="This key does not exist"
-            break
-        fi
+        case ${thisKey} in
+            " ") # Cancel, quit.
+                allKeys="This key does not exist"
+                break
+                ;;
+            ||\x08|\x7f) # Delete previous character.
+                allKeys=${allKeys%?}
+                $((i-=2))
+                ;;
+            *) # Combine this key with all previous keys.
+                allKeys=${allKeys}${thisKey}
+                ;;
+        esac
 
-        # combine this key with all previous keys
-        allKeys=${allKeys}${thisKey}
 
         # cancel if there's a matching filename
-        if [ -e ${hksdir}/${dir}/${allKeys} ]; then
-            break
+        if [[ "X${allKeys}" != "X" ]]; then
+            if [ -e "${hksdir}/${dir}/${allKeys}" ]; then
+                break
+            fi
         fi
 
         # filter options
         clear
-        echo "Press <space> to cancel."
+        printf '%s\n' "Press <space> to cancel."
         for f in ${hksdir}/${dir}/*; do
-            if [[ ${f##*/} == ${allKeys}* ]]; then
-                echo -n "${f##*/}"
+            if [[ "${f##*/}" == "${allKeys}"* ]]; then
+                printf '%s' "${f##*/}"
                 thislen=$(expr length ${f##*/})
                 for (( j=1; j<=$((${max}-${thislen}+2)); j++)); do
-                    echo -n " "
+                    printf '%s' " "
                 done
                 if [ -e ${hksdir}/${dir}/.${f##*/} ]; then
-                    echo "$(cat ${hksdir}/$dir/.${f##*/})"
+                    printf '%s\n' "$(cat ${hksdir}/$dir/.${f##*/})"
                 else
-                    echo "$(cat ${f})"
+                    printf '%s\n' "$(cat ${f})"
                 fi
             fi
         done
-        echo -n ${allKeys}
+        printf '%s' ${allKeys}
     done
 
-    echo ${allKeys} > ${mykey}
+    echo ${allKeys} > "${mykey}"
     stty "${old_tty_setting}"
     exit
 fi
@@ -195,74 +206,59 @@ while getopts "w:a:" n; do
             ;;
         a)
             if ${no_w_param} || ${exe_ok}; then
+                if [ -e "${mykey}" ]; then
+                    rm -f "${mykey}"
+                fi
                 case ${OPTARG} in
                     action)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
+                        if [ ! -e "${hksdir}/${OPTARG}/${exe}" ]; then
+                            mkdir "${hksdir}/${OPTARG}/${exe}"
                         fi
-                        if [ ! -e ${hksdir}/${OPTARG}/${exe} ]; then
-                            mkdir ${hksdir}/${OPTARG}/${exe}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} "${OPTARG}/${exe}"
+                        case ${term} in
+                            konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}/${exe} ;;
+                            gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}${exe}" ;;
+                        esac
                         key=$(${this} ${keygetvar})
                         if [ -e "${hksdir}/${OPTARG}/${exe}/${key}" ]; then
                             sh "${hksdir}/${OPTARG}/${exe}/${key}" &
                         fi
                         ;;
-                    app)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                    app|win|file)
+                        case ${term} in
+                            konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG} ;;
+                            gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}" ;;
+                        esac
                         key=$(${this} ${keygetvar})
-                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
-                            sh ${hksdir}/${OPTARG}/${key} &
-                        fi
-                        ;;
-                    win)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
-                        key=$(${this} ${keygetvar})
-                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
-                            sh ${hksdir}/${OPTARG}/${key}
-                        fi
-                        ;;
-                    file)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
-                        key=$(${this} ${keygetvar})
-                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
-                            sh ${hksdir}/${OPTARG}/${key} &
+                        if [ -e "${hksdir}/${OPTARG}/${key}" ]; then
+                            sh "${hksdir}/${OPTARG}/${key}" &
                         fi
                         ;;
                     copy)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        type xclip >/dev/null 2>&1 || { echo >&2 "xclip is required."; exit 1; }
+                        case ${term} in
+                            konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG} ;;
+                            gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}" ;;
+                        esac
                         key=$(${this} ${keygetvar})
-                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
-                            xclip -selection clipboard -o -f > ${hksdir}/${OPTARG}/${key}
-                            xclip -selection clipboard -o -f > ${hksdir}/paste/${key}
+                        if [ -e "${hksdir}/${OPTARG}/${key}" ]; then
+                            xclip -selection clipboard -o -f > "${hksdir}/${OPTARG}/${key}"
+                            xclip -selection clipboard -o -f > "${hksdir}/paste/${key}"
                         fi
                         ;;
                     paste)
-                        if [ -e ${mykey} ]; then
-                            rm -f ${mykey}
-                        fi
-                        ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG}
+                        type xclip >/dev/null 2>&1 || { echo >&2 "xclip is required."; exit 1; }
+                        case ${term} in
+                            konsole) ${term} -p tabtitle=${this}_${OPTARG} -e ${this} ${keysetvar} ${OPTARG} ;;
+                            gnome-terminal) ${term} --title=${this}_${OPTARG} -e "${this} ${keysetvar} ${OPTARG}" ;;
+                        esac
                         key=$(${this} ${keygetvar})
-                        if [ -e ${hksdir}/${OPTARG}/${key} ]; then
+                        if [ -e "${hksdir}/${OPTARG}/${key}" ]; then
                             sleep 0.01
                             # preserve old clipboard contents
                             oldClipboardTextVal=$(xclip -selection clipboard -o -f)
 
                             # place file contents into clipboard
-                            xclip -selection clipboard -i -f ${hksdir}/${OPTARG}/${key}
+                            xclip -selection clipboard -i -f "${hksdir}/${OPTARG}/${key}"
 
                             # paste using Ctrl+v
                             xdotool keydown control && \
@@ -274,7 +270,7 @@ while getopts "w:a:" n; do
                         fi
                         ;;
                     *)
-                        sh ${hksdir}/misc/${OPTARG} &
+                        sh "${hksdir}/misc/${OPTARG}" &
                         ;;
                 esac
             fi

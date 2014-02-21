@@ -10,6 +10,7 @@ HKS is a utility that allows for arbitrary command(s) to be executed from a seri
 * Persistent clipboard invoking `hks -a copy` and `hks -a paste`.  BEWARE: anything copied is saved to disk, so don't copy any sensitive information using `hks -a copy`!!
 * Ability to limit functionality to specific applications.
 * Spacebar closes HKS window.
+* Backspace deletes last character.
 
 ##Installation
 
@@ -18,8 +19,8 @@ Copy the `hks` script to your executable path.
 Make sure you have the following:
 * HKS has been tested on only CentOS 6.4+.
 * `xdotool`
-* `wmctrl`
-* `konsole`
+* `wmctrl` (now optional)
+* `konsole` or `gnome-terminal`
 * `stty`
 * `bash`
 
@@ -54,3 +55,8 @@ There are 2 ways.
 The first is to use the `-w` option, which MUST come BEFORE the `-a` option for which it should affect.  To limit the command to the `konsole` application, use: `hks -w konsole -a app`.  To limit to `gvim`, use: `hks -w gvim -a app`.  And so on.
 
 The second way is to use the `-a action` option.  `-a action` will get the name of the current application (I'll use "gvim" as an example) and look in the `~/hks/action/gvim/` folder for any commands.  If the `~/hks/action/gvim/` doesn't exist, it will automatically be created.  If no commands exist in the `~/hks/action/gvim/` folder, the HKS application will just quit.
+
+## Update Log
+* 2013-07-06: Created.
+* 2013-08-24: Added persistent clipboard feature.
+* 2014.02.21: Added support for gnome-terminal and backspace input.  Removed dependency on wmctrl (script will use it if available).
